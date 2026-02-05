@@ -50,56 +50,120 @@ def handle_message(event):
     # 1. Search
     results = search_engine.search(user_msg)
     
-    if not results:
-        # Fallback or help
-        reply_msg = TextSendMessage(text=f"ไม่พบโปรโมชั่นที่เกี่ยวกับ '{user_msg}' ครับ\nลองคำอื่น หรือพิมพ์ 'ล่าสุด' เพื่อดูโปรใหม่ๆ")
-        if user_msg == "ล่าสุด":
-            results = search_engine.get_latest()
+    if not results and user_msg == "ล่าสุด":
+        results = search_engine.get_latest()
     
-    if results:
-        # Create Flex Message or Simple List
+    if not results:
+        reply_msg = TextSendMessage(text=f"ไม่พบโปรโมชั่นที่เกี่ยวกับ '{user_msg}' ครับ\nลองคำอื่น หรือพิมพ์ 'ล่าสุด' เพื่อดูโปรใหม่ๆ")
+    else:
         try:
-            lines = [f"🔍 พบ {len(results)} รายการ:"]
-            for promo in results[:3]: # Limit to 3 (more details per item)
-                # Clean up title (remove date prefixes)
+            # Build Flex Message Carousel
+            bubbles = []
+            for promo in results[:5]:  # Limit to 5 cards
+                # Clean up title
                 title = promo['title'].split('\n')[-1].strip() if '\n' in promo['title'] else promo['title']
+                if len(title) > 40:
+                    title = title[:37] + "..."
                 
-                # Get full content or description
+                # Get content
                 content = promo.get('content', '') or promo.get('description', '')
+                if len(content) > 200:
+                    content = content[:197] + "..."
                 
-                # Get link
+                # Get link and attachments
                 link = promo.get('link', '')
-                
-                # Get attachment URLs
                 attachments = promo.get('attachments', [])
                 
-                # Build message
-                msg_parts = [f"📌 {title}"]
-                if content:
-                    msg_parts.append(content)
+                # Build action buttons
+                actions = []
                 if link:
-                    msg_parts.append(f"🔗 รายละเอียด: {link}")
+                    actions.append({
+                        "type": "button",
+                        "style": "primary",
+                        "action": {
+                            "type": "uri",
+                            "label": "ดูรายละเอียด",
+                            "uri": link
+                        }
+                    })
                 
-                # Add attachment links
-                if attachments:
-                    msg_parts.append("\n📎 ไฟล์แนบ:")
-                    for att in attachments[:5]:  # Limit to 5 attachments
-                        att_text = att.get('text', 'ไฟล์')
-                        att_url = att.get('url', '')
-                        if att_url and not att_url.endswith('#'):
-                            msg_parts.append(f"• {att_text}\n  {att_url}")
+                # Add attachment buttons (max 2)
+                for att in attachments[:2]:
+                    att_url = att.get('url', '')
+                    att_text = att.get('text', 'ไฟล์แนบ')
+                    if len(att_text) > 20:
+                        att_text = att_text[:17] + "..."
+                    if att_url and not att_url.endswith('#'):
+                        actions.append({
+                            "type": "button",
+                            "style": "secondary",
+                            "action": {
+                                "type": "uri",
+                                "label": f"📎 {att_text}",
+                                "uri": att_url
+                            }
+                        })
                 
-                lines.append("\n".join(msg_parts))
+                # Build bubble
+                bubble = {
+                    "type": "bubble",
+                    "size": "kilo",
+                    "header": {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": title,
+                                "weight": "bold",
+                                "size": "md",
+                                "wrap": True,
+                                "maxLines": 2
+                            }
+                        ],
+                        "backgroundColor": "#27ACB2"
+                    },
+                    "body": {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": content if content else "ไม่มีรายละเอียด",
+                                "size": "sm",
+                                "wrap": True,
+                                "maxLines": 6,
+                                "color": "#666666"
+                            }
+                        ]
+                    }
+                }
+                
+                # Add footer with buttons if any
+                if actions:
+                    bubble["footer"] = {
+                        "type": "box",
+                        "layout": "vertical",
+                        "spacing": "sm",
+                        "contents": actions
+                    }
+                
+                bubbles.append(bubble)
             
-            if len(results) > 3:
-                lines.append(f"...และอีก {len(results)-3} รายการ")
-
-            reply_msg = TextSendMessage(text="\n\n".join(lines))
+            # Create carousel
+            flex_content = {
+                "type": "carousel",
+                "contents": bubbles
+            }
+            
+            reply_msg = FlexSendMessage(
+                alt_text=f"พบ {len(results)} โปรโมชั่น",
+                contents=flex_content
+            )
+            
         except Exception as e:
-            print(f"Error building reply: {e}")
-            reply_msg = TextSendMessage(text="เกิดข้อผิดพลาดในการแสดงผล")
+            print(f"Error building Flex: {e}")
+            # Fallback to text
+            reply_msg = TextSendMessage(text=f"พบ {len(results)} รายการ แต่ไม่สามารถแสดง Card ได้")
 
-    line_bot_api.reply_message(
-        event.reply_token,
-        reply_msg
-    )
+    line_bot_api.reply_message(event.reply_token, reply_msg)
