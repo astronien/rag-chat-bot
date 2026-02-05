@@ -40,8 +40,10 @@ async def scrape_promotions():
 
         # 2. Count cards
         print("Extracting promotion cards...")
+        # Wait a bit longer for SPA to fully load
+        await page.wait_for_timeout(3000)
         try:
-            await page.wait_for_selector(".main-card", timeout=60000)
+            await page.wait_for_selector(".main-card", timeout=90000)
         except Exception as e:
             print(f"Error waiting for cards: {e}")
             await page.screenshot(path="debug_error.png")
@@ -137,23 +139,59 @@ async def scrape_promotions():
                         # Extract attachment links (Google Drive, PDF, static files)
                         attachments = await page.evaluate('''() => {
                             const links = [];
+                            
+                            // 1. Find <a> tags with relevant links
                             document.querySelectorAll('a').forEach(a => {
                                 const href = a.href;
                                 const text = a.textContent.trim();
                                 // Match: Google Drive, PDF files, static files
                                 if (href.includes('drive.google.com') || 
                                     href.includes('.pdf') ||
-                                    href.includes('static.vrcomseven.com') ||
+                                    (href.includes('static.vrcomseven.com') && !href.endsWith('.jpg') && !href.endsWith('.png')) ||
                                     text.toLowerCase().includes('pdf') ||
-                                    text.includes('ดาวน์โหลด') ||
-                                    text.includes('คู่มือ')) {
+                                    text.includes('ดาวน์โหลด')) {
+                                    if (!href.endsWith('#')) {
+                                        links.push({
+                                            text: text || 'ลิงก์ดาวน์โหลด',
+                                            url: href
+                                        });
+                                    }
+                                }
+                            });
+                            
+                            // 2. Find img.img-btn elements (clickable PDF previews)
+                            document.querySelectorAll('img.img-btn').forEach(img => {
+                                const src = img.src;
+                                if (src.includes('static.vrcomseven.com')) {
+                                    // Convert .jpg/.png to .pdf
+                                    let pdfUrl = src.replace(/\.(jpg|jpeg|png)$/i, '.pdf');
+                                    // Extract filename for text
+                                    const filename = pdfUrl.split('/').pop().split('-').slice(1).join('-').replace('.pdf', '');
                                     links.push({
-                                        text: text,
+                                        text: decodeURIComponent(filename) || 'ไฟล์ PDF',
+                                        url: pdfUrl
+                                    });
+                                }
+                            });
+                            
+                            // 3. Find .xlsb, .xlsx files
+                            document.querySelectorAll('a').forEach(a => {
+                                const href = a.href;
+                                if (href.includes('.xlsb') || href.includes('.xlsx')) {
+                                    links.push({
+                                        text: a.textContent.trim() || 'ไฟล์ Excel',
                                         url: href
                                     });
                                 }
                             });
-                            return links;
+                            
+                            // Remove duplicates
+                            const seen = new Set();
+                            return links.filter(l => {
+                                if (seen.has(l.url)) return false;
+                                seen.add(l.url);
+                                return true;
+                            });
                         }''')
                         
                         print(f"  -> Found {len(attachments)} attachments")
