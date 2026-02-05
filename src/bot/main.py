@@ -195,7 +195,7 @@ def handle_message(event):
                         ],
                         "action": {
                             "type": "uri",
-                            "uri": f"https://rag-chat-bot.vercel.app/view/{promo_id}"
+                            "uri": f"https://rag-bot-chat.vercel.app/view/{promo_id}"
                         }
                     }
                 }
