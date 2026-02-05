@@ -1,6 +1,7 @@
 import asyncio
 import os
 import json
+import re
 from playwright.async_api import async_playwright
 from dotenv import load_dotenv
 
@@ -37,7 +38,7 @@ async def scrape_promotions():
         except:
             print("Already logged in or login form not found.")
 
-        # 2. Extract Promotion Cards
+        # 2. Count cards
         print("Extracting promotion cards...")
         try:
             await page.wait_for_selector(".main-card", timeout=60000)
@@ -46,91 +47,128 @@ async def scrape_promotions():
             await page.screenshot(path="debug_error.png")
             raise e
         
-        cards = await page.locator(".main-card").all()
-        if not cards:
+        card_count = await page.locator(".main-card").count()
+        print(f"Found {card_count} promotion cards")
+        
+        if card_count == 0:
             print("No cards found!")
-            await page.screenshot(path="debug_no_cards.png")
             return
 
-        # Collect basic info first
-        basic_info = []
-        for i, card in enumerate(cards):
-            try:
-                title_el = card.locator("h1, h2, h3, h4, h5, .title").first
-                title = await title_el.inner_text() if await title_el.count() > 0 else "No Title"
-                
-                link_el = card.locator("a[href]").first
-                link = await link_el.get_attribute("href") if await link_el.count() > 0 else None
-                if link and not link.startswith("http"):
-                    link = BASE_URL + link
-
-                desc_el = card.locator(".card-desc").first
-                desc = await desc_el.inner_text() if await desc_el.count() > 0 else ""
-
-                basic_info.append({
-                    "id": i,
-                    "title": title.strip(),
-                    "link": link,
-                    "description": desc.strip(),
-                })
-                print(f"Found: {title.strip()[:50]}...")
-            except Exception as e:
-                print(f"Error parsing card {i}: {e}")
-
-        # 3. Visit each detail page to get full content
-        print(f"\n--- Scraping details for {len(basic_info)} promotions ---")
         results = []
-        
-        for item in basic_info:
-            full_content = ""
-            if item['link']:
-                try:
-                    print(f"Visiting: {item['title'][:40]}...")
-                    await page.goto(item['link'], timeout=30000)
-                    await page.wait_for_load_state('domcontentloaded')
+
+        # 3. Process each card
+        for i in range(card_count):
+            try:
+                # Always start from list page
+                if page.url != LOGIN_URL:
+                    await page.goto(LOGIN_URL)
+                    await page.wait_for_selector(".main-card", timeout=30000)
+                
+                # Get card info before clicking
+                cards = await page.locator(".main-card").all()
+                if i >= len(cards):
+                    continue
                     
-                    # Try to find main content area (adjust selector based on site structure)
-                    # Common selectors for content
-                    content_selectors = [
-                        ".content-body",
-                        ".promotion-content", 
-                        ".article-content",
-                        ".main-content",
-                        ".card-body",
-                        "article",
-                        ".container main",
-                    ]
+                card = cards[i]
+                
+                # Get title from card
+                title_el = card.locator("h1, h2, h3, h4, h5").first
+                card_title = await title_el.inner_text() if await title_el.count() > 0 else f"Promotion {i}"
+                card_title = card_title.strip()
+                
+                # Get short description
+                desc_el = card.locator(".card-desc").first
+                short_desc = await desc_el.inner_text() if await desc_el.count() > 0 else ""
+                
+                print(f"\n[{i+1}/{card_count}] {card_title[:50]}...")
+                
+                # Find and click "อ่านเพิ่มเติม"
+                read_more = card.locator("text=อ่านเพิ่มเติม").first
+                if await read_more.count() > 0:
+                    # Store current URL
+                    old_url = page.url
                     
-                    for selector in content_selectors:
-                        content_el = page.locator(selector).first
-                        if await content_el.count() > 0:
-                            full_content = await content_el.inner_text()
-                            break
+                    # Click
+                    await read_more.click()
                     
-                    # Fallback: get all text from body but clean it up
-                    if not full_content:
-                        body_text = await page.locator("body").inner_text()
-                        # Take first 2000 chars to avoid too much junk
-                        full_content = body_text[:2000]
+                    # Wait for URL to change (Vue router navigation)
+                    try:
+                        await page.wait_for_url(re.compile(r"/promotions/\d+"), timeout=10000)
+                    except:
+                        # If URL doesn't change, wait a bit and check
+                        await page.wait_for_timeout(2000)
                     
-                    print(f"  -> Got {len(full_content)} chars")
+                    new_url = page.url
                     
-                except Exception as e:
-                    print(f"  -> Error: {e}")
-                    full_content = item['description']  # Fallback to short desc
-            
-            # Build keywords from title and content
-            text_for_keywords = item['title'] + " " + full_content
-            keywords = list(set([word.lower() for word in text_for_keywords.split() if len(word) > 2]))[:20]
-            
-            results.append({
-                "id": item['id'],
-                "title": item['title'],
-                "link": item['link'],
-                "description": item['description'],
-                "content": full_content.strip(),
-                "keywords": keywords
-            })
+                    if new_url != old_url and '/promotions/' in new_url:
+                        print(f"  -> Opened: {new_url}")
+                        
+                        await page.wait_for_load_state('networkidle')
+                        
+                        # Extract content from detail page
+                        full_content = ""
+                        
+                        # Try .pre-formatted
+                        pre_el = page.locator(".pre-formatted").first
+                        if await pre_el.count() > 0:
+                            full_content = await pre_el.inner_text()
+                        
+                        # Get title from detail page
+                        head_font = page.locator(".head-font").first
+                        if await head_font.count() > 0:
+                            detail_title = await head_font.inner_text()
+                        else:
+                            detail_title = card_title
+                        
+                        # Fallback content
+                        if not full_content or len(full_content) < 50:
+                            for sel in [".col-md-6", ".container", "article"]:
+                                el = page.locator(sel).first
+                                if await el.count() > 0:
+                                    full_content = await el.inner_text()
+                                    if len(full_content) > 100:
+                                        break
+                        
+                        if not full_content:
+                            full_content = short_desc
+                        
+                        print(f"  -> Got {len(full_content)} chars")
+                        
+                        # Keywords
+                        text_for_keywords = detail_title + " " + full_content
+                        keywords = list(set([w.lower() for w in text_for_keywords.split() if len(w) > 2]))[:30]
+                        
+                        results.append({
+                            "id": i,
+                            "title": detail_title.strip(),
+                            "link": new_url,
+                            "description": short_desc.strip(),
+                            "content": full_content.strip()[:5000],  # Limit content size
+                            "keywords": keywords
+                        })
+                    else:
+                        print(f"  -> Failed to navigate (stayed at {new_url})")
+                        results.append({
+                            "id": i,
+                            "title": card_title,
+                            "link": None,
+                            "description": short_desc.strip(),
+                            "content": "",
+                            "keywords": []
+                        })
+                else:
+                    print(f"  -> No 'อ่านเพิ่มเติม' link")
+                    results.append({
+                        "id": i,
+                        "title": card_title,
+                        "link": None,
+                        "description": short_desc.strip(),
+                        "content": "",
+                        "keywords": []
+                    })
+                    
+            except Exception as e:
+                print(f"  -> Error: {e}")
 
         await browser.close()
         
@@ -139,8 +177,7 @@ async def scrape_promotions():
         with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
             json.dump(results, f, ensure_ascii=False, indent=2)
         
-        print(f"\nSaved {len(results)} promotions with full details to {OUTPUT_FILE}")
+        print(f"\n✅ Saved {len(results)} promotions to {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     asyncio.run(scrape_promotions())
-
