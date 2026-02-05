@@ -134,6 +134,30 @@ async def scrape_promotions():
                         
                         print(f"  -> Got {len(full_content)} chars")
                         
+                        # Extract attachment links (Google Drive, PDF, static files)
+                        attachments = await page.evaluate('''() => {
+                            const links = [];
+                            document.querySelectorAll('a').forEach(a => {
+                                const href = a.href;
+                                const text = a.textContent.trim();
+                                // Match: Google Drive, PDF files, static files
+                                if (href.includes('drive.google.com') || 
+                                    href.includes('.pdf') ||
+                                    href.includes('static.vrcomseven.com') ||
+                                    text.toLowerCase().includes('pdf') ||
+                                    text.includes('ดาวน์โหลด') ||
+                                    text.includes('คู่มือ')) {
+                                    links.push({
+                                        text: text,
+                                        url: href
+                                    });
+                                }
+                            });
+                            return links;
+                        }''')
+                        
+                        print(f"  -> Found {len(attachments)} attachments")
+                        
                         # Keywords
                         text_for_keywords = detail_title + " " + full_content
                         keywords = list(set([w.lower() for w in text_for_keywords.split() if len(w) > 2]))[:30]
@@ -144,6 +168,7 @@ async def scrape_promotions():
                             "link": new_url,
                             "description": short_desc.strip(),
                             "content": full_content.strip()[:5000],  # Limit content size
+                            "attachments": attachments,
                             "keywords": keywords
                         })
                     else:
