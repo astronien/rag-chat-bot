@@ -1,6 +1,7 @@
 import os
 import sys
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import HTMLResponse
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage
@@ -42,6 +43,56 @@ async def callback(request: Request):
 
     return "OK"
 
+# View promotion details (no login required)
+@app.get("/view/{promo_id}", response_class=HTMLResponse)
+def view_promotion(promo_id: int):
+    promo = search_engine.get_by_id(promo_id)
+    if not promo:
+        return HTMLResponse("<h1>ไม่พบโปรโมชั่น</h1>", status_code=404)
+    
+    title = promo.get('title', 'โปรโมชั่น')
+    content = promo.get('content', '') or promo.get('description', '')
+    attachments = promo.get('attachments', [])
+    
+    # Build attachments HTML
+    att_html = ""
+    if attachments:
+        att_html = "<h3>📎 ไฟล์แนบ</h3><ul>"
+        for att in attachments:
+            att_text = att.get('text', 'ไฟล์').rstrip('>').strip()
+            att_url = att.get('url', '')
+            if att_url:
+                att_html += f'<li><a href="{att_url}" target="_blank">{att_text}</a></li>'
+        att_html += "</ul>"
+    
+    html = f'''<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; background: #f5f5f5; }}
+        .card {{ background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }}
+        h1 {{ color: #27ACB2; font-size: 1.4em; }}
+        h3 {{ color: #333; margin-top: 20px; }}
+        .content {{ white-space: pre-wrap; line-height: 1.6; color: #444; }}
+        ul {{ padding-left: 20px; }}
+        li {{ margin: 8px 0; }}
+        a {{ color: #27ACB2; text-decoration: none; }}
+        a:hover {{ text-decoration: underline; }}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>{title}</h1>
+        <div class="content">{content}</div>
+        {att_html}
+    </div>
+</body>
+</html>'''
+    return HTMLResponse(html)
+
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     user_msg = event.message.text.strip()
@@ -65,27 +116,17 @@ def handle_message(event):
                 if len(title) > 40:
                     title = title[:37] + "..."
                 
-                # Get content - show more text
+                # Get content - show short preview
                 content = promo.get('content', '') or promo.get('description', '')
-                if len(content) > 1000:
-                    content = content[:997] + "..."
+                if len(content) > 200:
+                    content = content[:197] + "..."
                 
-                # Get link and attachments
-                link = promo.get('link', '')
+                # Get attachments and promo ID
+                promo_id = promo.get('id', 0)
                 attachments = promo.get('attachments', [])
                 
-                # Build action buttons
+                # Build action buttons (attachments only, no detail button)
                 actions = []
-                if link:
-                    actions.append({
-                        "type": "button",
-                        "style": "primary",
-                        "action": {
-                            "type": "uri",
-                            "label": "ดูรายละเอียด",
-                            "uri": link
-                        }
-                    })
                 
                 # Add attachment buttons (show ALL with original names)
                 for idx, att in enumerate(attachments, 1):
@@ -154,7 +195,7 @@ def handle_message(event):
                         ],
                         "action": {
                             "type": "uri",
-                            "uri": link if link else "https://vrcomseven.com/promotions"
+                            "uri": f"https://rag-chat-bot.vercel.app/view/{promo_id}"
                         }
                     }
                 }

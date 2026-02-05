@@ -47,3 +47,9 @@ class SearchEngine:
 
     def get_latest(self, n=5):
         return self.promotions[:n]
+
+    def get_by_id(self, promo_id: int):
+        for promo in self.promotions:
+            if promo.get('id') == promo_id:
+                return promo
+        return None
