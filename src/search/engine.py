@@ -29,12 +29,17 @@ class SearchEngine:
                 continue
             
             # Check Description
-            if query in promo['description'].lower():
+            if query in promo.get('description', '').lower():
+                results.append(promo)
+                continue
+            
+            # Check Content
+            if query in promo.get('content', '').lower():
                 results.append(promo)
                 continue
                 
             # Check Keywords (Exact match for now)
-            if query in promo['keywords']:
+            if query in promo.get('keywords', []):
                 results.append(promo)
                 continue
 

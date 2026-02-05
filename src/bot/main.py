@@ -59,11 +59,33 @@ def handle_message(event):
     if results:
         # Create Flex Message or Simple List
         try:
-            # For simplicity, sending text list first. 
-            # Flex Message is better but requires complex JSON structure.
-            lines = [f"Found {len(results)} items:"]
+            lines = [f"🔍 พบ {len(results)} รายการ:"]
             for promo in results[:5]: # Limit to 5
-                lines.append(f"• {promo['title']}\n{promo['link']}")
+                # Clean up title (remove date prefixes)
+                title = promo['title'].split('\n')[-1].strip() if '\n' in promo['title'] else promo['title']
+                
+                # Get content or description
+                content = promo.get('content', '') or promo.get('description', '')
+                if len(content) > 150:
+                    content = content[:150] + "..."
+                
+                # Get link
+                link = promo.get('link', '')
+                
+                # Get attachments count
+                attachments = promo.get('attachments', [])
+                attach_info = f"📎 {len(attachments)} ไฟล์แนบ" if attachments else ""
+                
+                # Build message
+                msg_parts = [f"📌 {title}"]
+                if content:
+                    msg_parts.append(content)
+                if link:
+                    msg_parts.append(f"🔗 {link}")
+                if attach_info:
+                    msg_parts.append(attach_info)
+                
+                lines.append("\n".join(msg_parts))
             
             if len(results) > 5:
                 lines.append(f"...และอีก {len(results)-5} รายการ")
