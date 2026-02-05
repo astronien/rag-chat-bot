@@ -1,0 +1,54 @@
+# Implementation Plan: Manual Knowledge Promotion Line Bot (RAG)
+
+## Goal
+Create a Line Chatbot that answers questions about current promotions by retrieving information from a password-protected website (https://vrcomseven.com/promotions).
+
+## User Review Required
+> [!IMPORTANT]
+> **Website Authentication**: Since the source is password-protected, we need to decide how to handle credentials.
+> 1. **Automated Scraping**: We store credentials (env vars) and use a headless browser (Playwright/Selenium) to login and scrape periodically.
+> 2. **Manual Ingestion**: You manually save the HTML/PDFs from the site and drop them into a folder.
+> *Recommendation*: Start with **Automated Scraping** if the site structure is stable.
+
+## Architecture (Keyword Search Version)
+
+1.  **Ingestion Service (Local Run)**
+    *   **Action**: Login -> Extract Promotions -> Save as `promotions.json`.
+    *   **Data Structure**: List of objects `{"title": "...", "link": "...", "keywords": [...]}`.
+2.  **Search Logic (Vercel)**
+    *   **Method**: Filter the list based on user string (Case-insensitive match).
+    *   **Fallback**: If no match, show "Latest Promotions".
+3.  **Bot Backend (Vercel)**
+    *   **Stack**: FastAPI + Line SDK.
+    *   **Response**: Flex Message or Text List with links.
+
+## Proposed Changes
+
+### Phase 1: Data Ingestion
+#### [MODIFY] `src/scraper/scrape.py`
+- Output to `data/promotions.json` instead of individual text files.
+- Add basic keyword extraction (e.g., from Title keys).
+
+### Phase 2: Search Core
+#### [NEW] `src/search/engine.py`
+- `search_promotions(query, data)`: Returns matching items.
+
+### Phase 3: Line Bot
+#### [MODIFY] `src/bot/main.py`
+- Remove OpenAI/LangChain.
+- Integrate `search_promotions`.
+- Add `.env` config with provided credentials.
+
+### Phase 3: Line Bot Interface
+#### [NEW] `app/`
+- `main.py`: FastAPI entry point.
+- `line_handler.py`: Webhook handler for Line events.
+
+## Verification Plan
+### Automated Tests
+- Test scraper login (mocking success).
+- Test retrieval relevance (Query: "Promotion iPhone" -> Returns iPhone docs).
+### Manual Verification
+- Run scraper locally, verify it creates text files.
+- Run `rag_test.py` with sample questions.
+- Interact with the Line Bot (Ngrok for local testing).

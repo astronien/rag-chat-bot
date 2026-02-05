@@ -1,0 +1,47 @@
+# How to Run
+
+## 1. Install Dependencies
+```bash
+pip install -r requirements.txt
+playwright install
+```
+
+## 2. Setup Environment
+Create a `.env` file:
+```env
+VR_USERNAME=25622
+VR_PASSWORD=91544
+OPENAI_API_KEY=sk-... (Required for RAG)
+LINE_CHANNEL_ACCESS_TOKEN=...
+LINE_CHANNEL_SECRET=...
+```
+
+## 3. Run Scraper (Locally)
+This will fetch promotions and save them to `data/manuals`.
+```bash
+python src/scraper/scrape.py
+```
+
+## 4. Build Knowledge Base (Locally)
+This will create the `chroma_db` folder.
+```bash
+python src/rag/ingest.py
+```
+
+
+## 6. Updating Data (Maintenance)
+Since Vercel is read-only, you must run the scraper locally and push the updated data to Git.
+
+1. **Run Scraper**:
+   ```bash
+   python src/scraper/scrape.py
+   ```
+   This will update `data/promotions.json`.
+
+2. **Push to Vercel**:
+   ```bash
+   git add data/promotions.json
+   git commit -m "Update promotions"
+   git push
+   ```
+   Vercel will detect the change and automatically redeploy the bot (~1-2 minutes).

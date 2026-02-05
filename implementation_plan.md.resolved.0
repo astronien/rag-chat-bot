@@ -1,0 +1,53 @@
+# Implementation Plan: Manual Knowledge Promotion Line Bot (RAG)
+
+## Goal
+Create a Line Chatbot that answers questions about current promotions by retrieving information from a password-protected website (https://vrcomseven.com/promotions).
+
+## User Review Required
+> [!IMPORTANT]
+> **Website Authentication**: Since the source is password-protected, we need to decide how to handle credentials.
+> 1. **Automated Scraping**: We store credentials (env vars) and use a headless browser (Playwright/Selenium) to login and scrape periodically.
+> 2. **Manual Ingestion**: You manually save the HTML/PDFs from the site and drop them into a folder.
+> *Recommendation*: Start with **Automated Scraping** if the site structure is stable.
+
+## Architecture
+
+1.  **Ingestion Service (Python)**
+    *   **Tool**: Playwright (better for modern dynamic web apps).
+    *   **Action**: Login -> Navigate to Promotions -> Extract Text/Links -> Download Details.
+    *   **Processing**: Convert HTML/Images to clean Markdown/Text.
+2.  **Knowledge Base (RAG)**
+    *   **Embeddings**: `text-embedding-3-small` (OpenAI) or `gemini-embedding-001` (Google).
+    *   **Vector DB**: **ChromaDB** (Local, simple) or **Pinecone** (Cloud).
+    *   **LLM**: `Gemini 2.0 Flash` (Fast, good context) or `GPT-4o-mini`.
+3.  **Bot Backend (Python)**
+    *   **Framework**: **FastAPI** (Async, high performance).
+    *   **Platform**: Line Messaging API (via `line-bot-sdk`).
+    *   **Hosting**: Render / Railway / Cloud Run (need persistent storage for ChromaDB if local).
+
+## Proposed Changes
+
+### Phase 1: Setup & Scraper
+#### [NEW] `scraper/`
+- `auth.py`: Handles login to vrcomseven.com.
+- `collector.py`: Crawls promotion pages and extracts content.
+- `parser.py`: Cleans HTML to useful text chunks.
+
+### Phase 2: RAG Pipeline
+#### [NEW] `rag/`
+- `vector_store.py`: Interface for ChromaDB (Add/Query).
+- `chain.py`: The LLM logic (Context + Question -> Answer).
+
+### Phase 3: Line Bot Interface
+#### [NEW] `app/`
+- `main.py`: FastAPI entry point.
+- `line_handler.py`: Webhook handler for Line events.
+
+## Verification Plan
+### Automated Tests
+- Test scraper login (mocking success).
+- Test retrieval relevance (Query: "Promotion iPhone" -> Returns iPhone docs).
+### Manual Verification
+- Run scraper locally, verify it creates text files.
+- Run `rag_test.py` with sample questions.
+- Interact with the Line Bot (Ngrok for local testing).

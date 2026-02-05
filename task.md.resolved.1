@@ -1,0 +1,24 @@
+- [ ] Requirement Gathering & Feasibility Discussion <!-- id: 0 -->
+    - [x] Confirm data source formats (Web - requires login) <!-- id: 1 -->
+    - [x] Determine deployment platform (Line Bot) <!-- id: 2 -->
+    - [x] Choose tech stack (Python/LangChain) <!-- id: 3 -->
+- [ ] Architecture Design <!-- id: 4 -->
+    - [ ] Create Implementation Plan <!-- id: 5 -->
+    - [ ] Design Auth-walled Web Scraper (Selenium/Playwright) <!-- id: 6 -->
+    - [ ] Design RAG Pipeline (ChromaDB + Gemini/OpenAI) <!-- id: 15 -->
+- [ ] Implementation <!-- id: 7 -->
+    - [ ] Setup Python Environment & Project Structure <!-- id: 8 -->
+    - [ ] **Phase 1: Data Ingestion** <!-- id: 16 -->
+        - [ ] Develop Scraper for vrcomseven.com (needs credentials) <!-- id: 17 -->
+        - [ ] Implement Parsing (HTML to Text/Markdown) <!-- id: 18 -->
+    - [ ] **Phase 2: RAG Core** <!-- id: 10 -->
+        - [ ] Setup Vector Database (ChromaDB) <!-- id: 19 -->
+        - [ ] Implement Indexing Script <!-- id: 20 -->
+        - [ ] Implement Retrieval & Generation Chain <!-- id: 21 -->
+    - [ ] **Phase 3: Service Interface** <!-- id: 11 -->
+        - [ ] Develop FastAPI Backend for Line Webhook <!-- id: 22 -->
+        - [ ] Integrate Line Messaging API <!-- id: 23 -->
+- [ ] Verification <!-- id: 12 -->
+    - [ ] Test Scraper with provided credentials <!-- id: 13 -->
+    - [ ] Verify RAG answers on specific promotions <!-- id: 14 -->
+    - [ ] User Testing on Line App <!-- id: 24 -->

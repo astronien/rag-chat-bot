@@ -1,0 +1,55 @@
+# Implementation Plan: Manual Knowledge Promotion Line Bot (RAG)
+
+## Goal
+Create a Line Chatbot that answers questions about current promotions by retrieving information from a password-protected website (https://vrcomseven.com/promotions).
+
+## User Review Required
+> [!IMPORTANT]
+> **Website Authentication**: Since the source is password-protected, we need to decide how to handle credentials.
+> 1. **Automated Scraping**: We store credentials (env vars) and use a headless browser (Playwright/Selenium) to login and scrape periodically.
+> 2. **Manual Ingestion**: You manually save the HTML/PDFs from the site and drop them into a folder.
+> *Recommendation*: Start with **Automated Scraping** if the site structure is stable.
+
+## Architecture
+
+1.  **Ingestion Service (Local Run)**
+    *   **Context**: Vercel is stateless and has timeouts. The heavy lifting of scraping must happen **locally** or on a background worker.
+    *   **Tool**: Playwright (Python).
+    *   **Action**: Login (Creds: `25622` / `91544`) -> Navigate to `vrcomseven.com/promotions` -> Extract Content.
+    *   **Output**: Updates the Vector Database directly.
+2.  **Knowledge Base (RAG)**
+    *   **Vector DB**: **Pinecone** (Serverless/Free Tier).
+        *   *Reason*: Vercel cannot host a persistent database file easily without re-deploying. Pinecone allows us to update data from a local script without touching the running bot.
+    *   **Embeddings**: `text-embedding-3-small` (OpenAI).
+    *   **LLM**: `Gemini 2.0 Flash` (via Google AI Studio key) or `GPT-4o-mini`.
+3.  **Bot Backend (Vercel)**
+    *   **Framework**: **FastAPI** adapted for Vercel (`verce-adapter` or standard ASGI).
+    *   **Platform**: Line Messaging API.
+    *   **Flow**: Webhook -> Embed Query -> Search Pinecone -> Generate Answer -> Reply Line.
+
+## Proposed Changes
+
+### Phase 1: Setup & Scraper
+#### [NEW] `scraper/`
+- `auth.py`: Handles login to vrcomseven.com.
+- `collector.py`: Crawls promotion pages and extracts content.
+- `parser.py`: Cleans HTML to useful text chunks.
+
+### Phase 2: RAG Pipeline
+#### [NEW] `rag/`
+- `vector_store.py`: Interface for ChromaDB (Add/Query).
+- `chain.py`: The LLM logic (Context + Question -> Answer).
+
+### Phase 3: Line Bot Interface
+#### [NEW] `app/`
+- `main.py`: FastAPI entry point.
+- `line_handler.py`: Webhook handler for Line events.
+
+## Verification Plan
+### Automated Tests
+- Test scraper login (mocking success).
+- Test retrieval relevance (Query: "Promotion iPhone" -> Returns iPhone docs).
+### Manual Verification
+- Run scraper locally, verify it creates text files.
+- Run `rag_test.py` with sample questions.
+- Interact with the Line Bot (Ngrok for local testing).

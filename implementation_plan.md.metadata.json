@@ -1,0 +1,5 @@
+{
+  "artifactType": "ARTIFACT_TYPE_IMPLEMENTATION_PLAN",
+  "summary": "Implementation plan for the Com7 Promotion RAG Bot.\nIncludes architecture for Web Scraping (Auth), Vector DB, and Line Bot integration.",
+  "updatedAt": "2026-02-05T16:46:10.702446Z"
+}

@@ -1,0 +1,17 @@
+# Task: Manual Knowledge Promotion Chatbot (RAG)
+
+- [ ] Requirement Gathering & Feasibility Discussion <!-- id: 0 -->
+    - [ ] Confirm data source formats (PDF, Markdown, etc.) <!-- id: 1 -->
+    - [ ] Determine deployment platform (Web, Line, Slack, etc.) <!-- id: 2 -->
+    - [ ] Choose tech stack (Python/LangChain, JS, vector DB choice) <!-- id: 3 -->
+- [ ] Architecture Design <!-- id: 4 -->
+    - [ ] Design ingestion pipeline <!-- id: 5 -->
+    - [ ] Design retrieval flow <!-- id: 6 -->
+- [ ] Implementation <!-- id: 7 -->
+    - [ ] Setup project structure <!-- id: 8 -->
+    - [ ] Implement Document Ingestion (Indexing) <!-- id: 9 -->
+    - [ ] Implement Retrieval System <!-- id: 10 -->
+    - [ ] Implement Chat Interface <!-- id: 11 -->
+- [ ] Verification <!-- id: 12 -->
+    - [ ] Test with sample manual data <!-- id: 13 -->
+    - [ ] Verify answer accuracy <!-- id: 14 -->
