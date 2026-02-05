@@ -60,35 +60,39 @@ def handle_message(event):
         # Create Flex Message or Simple List
         try:
             lines = [f"🔍 พบ {len(results)} รายการ:"]
-            for promo in results[:5]: # Limit to 5
+            for promo in results[:3]: # Limit to 3 (more details per item)
                 # Clean up title (remove date prefixes)
                 title = promo['title'].split('\n')[-1].strip() if '\n' in promo['title'] else promo['title']
                 
-                # Get content or description
+                # Get full content or description
                 content = promo.get('content', '') or promo.get('description', '')
-                if len(content) > 150:
-                    content = content[:150] + "..."
                 
                 # Get link
                 link = promo.get('link', '')
                 
-                # Get attachments count
+                # Get attachment URLs
                 attachments = promo.get('attachments', [])
-                attach_info = f"📎 {len(attachments)} ไฟล์แนบ" if attachments else ""
                 
                 # Build message
                 msg_parts = [f"📌 {title}"]
                 if content:
                     msg_parts.append(content)
                 if link:
-                    msg_parts.append(f"🔗 {link}")
-                if attach_info:
-                    msg_parts.append(attach_info)
+                    msg_parts.append(f"🔗 รายละเอียด: {link}")
+                
+                # Add attachment links
+                if attachments:
+                    msg_parts.append("\n📎 ไฟล์แนบ:")
+                    for att in attachments[:5]:  # Limit to 5 attachments
+                        att_text = att.get('text', 'ไฟล์')
+                        att_url = att.get('url', '')
+                        if att_url and not att_url.endswith('#'):
+                            msg_parts.append(f"• {att_text}\n  {att_url}")
                 
                 lines.append("\n".join(msg_parts))
             
-            if len(results) > 5:
-                lines.append(f"...และอีก {len(results)-5} รายการ")
+            if len(results) > 3:
+                lines.append(f"...และอีก {len(results)-3} รายการ")
 
             reply_msg = TextSendMessage(text="\n\n".join(lines))
         except Exception as e:
