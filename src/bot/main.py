@@ -143,8 +143,19 @@ def handle_message(event):
                                 "size": "sm",
                                 "wrap": True,
                                 "color": "#666666"
+                            },
+                            {
+                                "type": "text",
+                                "text": "👆 แตะเพื่อดูรายละเอียดเพิ่มเติม",
+                                "size": "xs",
+                                "color": "#27ACB2",
+                                "margin": "md"
                             }
-                        ]
+                        ],
+                        "action": {
+                            "type": "uri",
+                            "uri": link if link else "https://vrcomseven.com/promotions"
+                        }
                     }
                 }
                 
