@@ -87,18 +87,21 @@ def handle_message(event):
                         }
                     })
                 
-                # Add attachment buttons (show ALL)
+                # Add attachment buttons (show ALL with original names)
                 for idx, att in enumerate(attachments, 1):
                     att_url = att.get('url', '')
-                    # Use simple numbered label (LINE limit is 20 chars)
-                    if '.pdf' in att_url.lower():
-                        label = f"📄 PDF {idx}"
-                    elif '.xls' in att_url.lower():
-                        label = f"📊 Excel {idx}"
-                    elif 'drive.google' in att_url.lower():
-                        label = f"📁 Drive {idx}"
+                    att_text = att.get('text', '').strip()
+                    
+                    # Clean up text (remove trailing > and extra spaces)
+                    att_text = att_text.rstrip('>').strip()
+                    
+                    # Use file name from text, truncated to LINE's 20 char limit
+                    if att_text:
+                        label = att_text[:20] if len(att_text) <= 20 else att_text[:17] + "..."
                     else:
-                        label = f"📎 ไฟล์ {idx}"
+                        # Fallback: extract filename from URL
+                        filename = att_url.split('/')[-1].split('.')[0][:15]
+                        label = filename if filename else f"ไฟล์ {idx}"
                     
                     if att_url and not att_url.endswith('#'):
                         actions.append({
