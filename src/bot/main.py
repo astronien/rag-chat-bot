@@ -65,10 +65,10 @@ def handle_message(event):
                 if len(title) > 40:
                     title = title[:37] + "..."
                 
-                # Get content
+                # Get content - show more text
                 content = promo.get('content', '') or promo.get('description', '')
-                if len(content) > 200:
-                    content = content[:197] + "..."
+                if len(content) > 1000:
+                    content = content[:997] + "..."
                 
                 # Get link and attachments
                 link = promo.get('link', '')
@@ -107,7 +107,7 @@ def handle_message(event):
                 # Build bubble
                 bubble = {
                     "type": "bubble",
-                    "size": "kilo",
+                    "size": "mega",
                     "header": {
                         "type": "box",
                         "layout": "vertical",
@@ -132,7 +132,6 @@ def handle_message(event):
                                 "text": content if content else "ไม่มีรายละเอียด",
                                 "size": "sm",
                                 "wrap": True,
-                                "maxLines": 6,
                                 "color": "#666666"
                             }
                         ]
