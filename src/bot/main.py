@@ -35,7 +35,12 @@ except ImportError:
 
 @app.get("/")
 def root():
-    return {"status": "ok", "service": "Manual Knowledge Bot (Keyword Search)"}
+    return {
+        "status": "ok", 
+        "service": "Manual Knowledge Bot (Keyword Search)",
+        "promotions_loaded": len(search_engine.promotions),
+        "data_file": str(search_engine.promotions[0].get("id") if search_engine.promotions else "empty")
+    }
 
 # Scraper Configuration
 VR_LOGIN_URL = "https://api.vrcomseven.com/users/web_login"
