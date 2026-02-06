@@ -1,5 +1,6 @@
 import os
 import sys
+from urllib.parse import quote, urlparse
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from linebot import LineBotApi, WebhookHandler
@@ -223,6 +224,17 @@ def handle_message(event):
                 # Add attachment buttons (show ALL with original names)
                 for idx, att in enumerate(attachments, 1):
                     att_url = att.get('url', '')
+                    
+                    # URL encode Thai characters if present
+                    if att_url:
+                        try:
+                            parsed = urlparse(att_url)
+                            # Encode path and keep scheme/netloc
+                            encoded_path = quote(parsed.path, safe='/')
+                            att_url = f"{parsed.scheme}://{parsed.netloc}{encoded_path}"
+                        except:
+                            pass
+                    
                     att_text = att.get('text', '').strip()
                     
                     # Clean up text (remove trailing > and extra spaces)
