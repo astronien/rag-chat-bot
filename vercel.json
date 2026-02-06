@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/promotions",
+      "destination": "/api/promotions.py"
+    },
+    {
       "source": "/view/:id",
       "destination": "/api/index.py"
     },
