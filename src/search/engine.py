@@ -9,9 +9,16 @@ DATA_FILE = PROJECT_ROOT / "data" / "promotions.json"
 
 # Stop words - คำที่ไม่ควร match
 STOP_WORDS = {
+    # Common Thai words
     'ที่', 'และ', 'หรือ', 'ของ', 'ใน', 'จาก', 'ได้', 'ไม่', 'ให้', 'มี', 'เป็น',
     'กับ', 'จะ', 'แต่', 'ว่า', 'ก็', 'นี้', 'มา', 'ไป', 'อยู่', 'แล้ว', 'ยัง',
+    # Casual/greeting words
+    'พี่ๆ', 'พี่', 'น้อง', 'ครับ', 'ค่ะ', 'คะ', 'นะ', 'จ้า', 'จ๊า', 'สวัสดี',
+    'หวัดดี', 'เฮ้', 'เฮ้ย', 'อะ', 'เหรอ', 'ไหม', 'บ้าง', 'ด้วย', 'อีก',
+    # Common English
     'the', 'and', 'or', 'for', 'to', 'in', 'on', 'at', 'of', 'is', 'it', 'by',
+    'hi', 'hello', 'hey', 'please', 'thank', 'thanks', 'you', 'me', 'we',
+    # Technical nulls
     'none', 'null', 'undefined', 'nan'
 }
 
