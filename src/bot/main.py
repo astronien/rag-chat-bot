@@ -26,9 +26,97 @@ LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET", "YOUR_CHANNEL_SECRET")
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
+import uuid
+from datetime import datetime
+try:
+    import httpx
+except ImportError:
+    httpx = None
+
 @app.get("/")
 def root():
     return {"status": "ok", "service": "Manual Knowledge Bot (Keyword Search)"}
+
+# Scraper Configuration
+VR_LOGIN_URL = "https://api.vrcomseven.com/users/web_login"
+VR_PROMOTIONS_URL = "https://api.vrcomseven.com/v1/promotions"
+VR_USERNAME = os.getenv("VR_USERNAME", "25622")
+VR_PASSWORD = os.getenv("VR_PASSWORD", "91544")
+
+# Simple cache for promotions
+_promo_cache = {"data": None, "timestamp": 0}
+CACHE_TTL = 300  # 5 minutes
+
+@app.get("/api/promotions")
+async def get_promotions():
+    """Fetch promotions from vrcomseven API with caching."""
+    global _promo_cache
+    
+    now = datetime.now().timestamp()
+    if _promo_cache["data"] and (now - _promo_cache["timestamp"] < CACHE_TTL):
+        return {"success": True, "count": len(_promo_cache["data"]), "data": _promo_cache["data"], "cached": True}
+    
+    if not httpx:
+        return {"success": False, "error": "httpx not installed"}
+    
+    # Login
+    try:
+        login_resp = httpx.post(
+            VR_LOGIN_URL,
+            json={"emp_code": VR_USERNAME, "pass": VR_PASSWORD, "device_uuid": str(uuid.uuid4()), "platform": "web"},
+            timeout=30
+        )
+        token_data = login_resp.json().get("data", {})
+        token = token_data.get("access_token")
+        if not token:
+            return {"success": False, "error": "Login failed"}
+    except Exception as e:
+        return {"success": False, "error": f"Login error: {str(e)}"}
+    
+    # Fetch promotions
+    try:
+        promo_resp = httpx.get(
+            f"{VR_PROMOTIONS_URL}?perpage=200&sort_by=updated_at&sort_direction=desc&business_units=Apple",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=60
+        )
+        raw = promo_resp.json().get("data", [])
+    except Exception as e:
+        return {"success": False, "error": f"Fetch error: {str(e)}"}
+    
+    # Process promotions
+    results = []
+    for promo in raw:
+        duration = ""
+        try:
+            display_to = promo.get("display_to")
+            if display_to:
+                end_date = datetime.strptime(display_to.split()[0], "%Y-%m-%d")
+                days_left = (end_date - datetime.now()).days
+                if days_left > 0:
+                    duration = f"เหลือเวลาอีก {days_left} วัน"
+                elif days_left == 0:
+                    duration = "วันนี้วันสุดท้าย"
+                else:
+                    duration = "หมดอายุแล้ว"
+        except:
+            pass
+        
+        attachments = [{"text": a.get("title", "ดาวน์โหลด"), "url": a.get("uri", "")} for a in (promo.get("attachments") or [])]
+        
+        results.append({
+            "id": promo.get("id"),
+            "title": promo.get("title", ""),
+            "link": f"https://vrcomseven.com/promotions/{promo.get('id')}",
+            "description": promo.get("description", ""),
+            "duration": duration,
+            "category": promo.get("category", ""),
+            "promotion_type": (promo.get("promotion_type") or {}).get("name", ""),
+            "attachments": attachments
+        })
+    
+    _promo_cache = {"data": results, "timestamp": now}
+    return {"success": True, "count": len(results), "data": results}
 
 @app.post("/callback")
 async def callback(request: Request):
