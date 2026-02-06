@@ -48,7 +48,7 @@ class SearchEngine:
 
         return results
 
-    def get_latest(self, n=5):
+    def get_latest(self, n=12):
         return self.promotions[:n]
 
     def get_by_id(self, promo_id: int):

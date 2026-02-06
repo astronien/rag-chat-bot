@@ -205,7 +205,7 @@ def handle_message(event):
         try:
             # Build Flex Message Carousel
             bubbles = []
-            for promo in results[:5]:  # Limit to 5 cards
+            for promo in results[:12]:  # LINE Carousel max 12 bubbles
                 # Clean up title - show full title
                 title = promo['title'].split('\n')[-1].strip() if '\n' in promo['title'] else promo['title']
                 
