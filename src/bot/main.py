@@ -5,8 +5,9 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage
+from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage, QuickReply, QuickReplyButton, MessageAction
 from dotenv import load_dotenv
+import re
 
 # Add src to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -26,6 +27,9 @@ LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET", "YOUR_CHANNEL_SECRET")
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
+
+# Store user search sessions for pagination
+user_sessions = {}
 
 import uuid
 from datetime import datetime
@@ -189,75 +193,95 @@ def view_promotion(promo_id: int):
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
+    user_id = event.source.user_id
     user_msg = event.message.text.strip()
     print(f"Received: {user_msg}")
     
-    # 1. Check for special commands first
-    if user_msg == "ล่าสุด":
-        results = search_engine.get_latest()
+    # Check for page navigation command (e.g., "หน้า 2", "หน้า2")
+    page_match = re.match(r'^หน้า\s*(\d+)$', user_msg)
+    
+    if page_match:
+        page_num = int(page_match.group(1))
+        # Get cached results from session
+        if user_id in user_sessions and user_sessions[user_id].get('results'):
+            results = user_sessions[user_id]['results']
+            query = user_sessions[user_id].get('query', 'ค้นหา')
+        else:
+            reply_msg = TextSendMessage(text="ไม่มีผลการค้นหาก่อนหน้า กรุณาค้นหาใหม่")
+            line_bot_api.reply_message(event.reply_token, reply_msg)
+            return
     else:
-        # 2. Search
-        results = search_engine.search(user_msg)
+        # New search
+        page_num = 1
+        
+        # Check for special commands
+        if user_msg == "ล่าสุด":
+            results = search_engine.get_latest(n=50)  # Get more for pagination
+            query = "ล่าสุด"
+        else:
+            results = search_engine.search(user_msg)
+            query = user_msg
+        
+        # Store in session for pagination
+        user_sessions[user_id] = {'results': results, 'query': query}
     
     if not results:
         reply_msg = TextSendMessage(text=f"ไม่พบโปรโมชั่นที่เกี่ยวกับ '{user_msg}' ครับ\nลองคำอื่น หรือพิมพ์ 'ล่าสุด' เพื่อดูโปรใหม่ๆ")
     else:
         try:
+            # Pagination
+            per_page = 12
+            total_pages = (len(results) + per_page - 1) // per_page
+            start_idx = (page_num - 1) * per_page
+            end_idx = start_idx + per_page
+            page_results = results[start_idx:end_idx]
+            
+            if not page_results:
+                reply_msg = TextSendMessage(text=f"ไม่มีหน้า {page_num}")
+                line_bot_api.reply_message(event.reply_token, reply_msg)
+                return
+            
             # Build Flex Message Carousel
             bubbles = []
-            for promo in results[:12]:  # LINE Carousel max 12 bubbles
-                # Clean up title - show full title
+            for promo in page_results:
+                # Clean up title
                 title = promo['title'].split('\n')[-1].strip() if '\n' in promo['title'] else promo['title']
                 
-                # Get content - show short preview
+                # Get content
                 content = promo.get('content', '') or promo.get('description', '')
                 if len(content) > 200:
                     content = content[:197] + "..."
                 
-                # Get attachments and promo ID
                 promo_id = promo.get('id', 0)
                 attachments = promo.get('attachments', [])
                 
-                # Build action buttons (attachments only, no detail button)
+                # Build attachment buttons
                 actions = []
-                
-                # Add attachment buttons (show ALL with original names)
                 for idx, att in enumerate(attachments, 1):
                     att_url = att.get('url', '')
                     
-                    # URL encode Thai characters if present
+                    # URL encode Thai characters
                     if att_url:
                         try:
                             parsed = urlparse(att_url)
-                            # Encode path and keep scheme/netloc
                             encoded_path = quote(parsed.path, safe='/')
                             att_url = f"{parsed.scheme}://{parsed.netloc}{encoded_path}"
                         except:
                             pass
                     
-                    att_text = att.get('text', '').strip()
+                    att_text = att.get('text', '').strip().rstrip('>').strip()
                     
-                    # Clean up text (remove trailing > and extra spaces)
-                    att_text = att_text.rstrip('>').strip()
-                    
-                    # Use file name from text, truncated to LINE's 20 char limit
                     if att_text:
                         label = att_text[:20] if len(att_text) <= 20 else att_text[:17] + "..."
                     else:
-                        # Fallback: extract filename from URL
                         filename = att_url.split('/')[-1].split('.')[0][:15]
                         label = filename if filename else f"ไฟล์ {idx}"
                     
-                    # Validate URL - must be http:// or https://
                     if att_url and att_url.startswith(('http://', 'https://')) and not att_url.endswith('#'):
                         actions.append({
                             "type": "button",
                             "style": "secondary",
-                            "action": {
-                                "type": "uri",
-                                "label": label,
-                                "uri": att_url
-                            }
+                            "action": {"type": "uri", "label": label, "uri": att_url}
                         })
                 
                 # Build bubble
@@ -267,69 +291,52 @@ def handle_message(event):
                     "header": {
                         "type": "box",
                         "layout": "vertical",
-                        "contents": [
-                            {
-                                "type": "text",
-                                "text": title,
-                                "weight": "bold",
-                                "size": "md",
-                                "wrap": True,
-                                "maxLines": 2
-                            }
-                        ],
+                        "contents": [{"type": "text", "text": title, "weight": "bold", "size": "md", "wrap": True, "maxLines": 2}],
                         "backgroundColor": "#27ACB2"
                     },
                     "body": {
                         "type": "box",
                         "layout": "vertical",
                         "contents": [
-                            {
-                                "type": "text",
-                                "text": content if content else "ไม่มีรายละเอียด",
-                                "size": "sm",
-                                "wrap": True,
-                                "color": "#666666"
-                            },
-                            {
-                                "type": "text",
-                                "text": "👆 แตะเพื่อดูรายละเอียดเพิ่มเติม",
-                                "size": "xs",
-                                "color": "#27ACB2",
-                                "margin": "md"
-                            }
+                            {"type": "text", "text": content if content else "ไม่มีรายละเอียด", "size": "sm", "wrap": True, "color": "#666666"},
+                            {"type": "text", "text": "👆 แตะเพื่อดูรายละเอียดเพิ่มเติม", "size": "xs", "color": "#27ACB2", "margin": "md"}
                         ],
-                        "action": {
-                            "type": "uri",
-                            "uri": f"https://rag-bot-chat.vercel.app/view/{promo_id}"
-                        }
+                        "action": {"type": "uri", "uri": f"https://rag-bot-chat.vercel.app/view/{promo_id}"}
                     }
                 }
                 
-                # Add footer with buttons if any
                 if actions:
-                    bubble["footer"] = {
-                        "type": "box",
-                        "layout": "vertical",
-                        "spacing": "sm",
-                        "contents": actions
-                    }
+                    bubble["footer"] = {"type": "box", "layout": "vertical", "spacing": "sm", "contents": actions}
                 
                 bubbles.append(bubble)
             
             # Create carousel
-            flex_content = {
-                "type": "carousel",
-                "contents": bubbles
-            }
+            flex_content = {"type": "carousel", "contents": bubbles}
             
-            reply_msg = FlexSendMessage(
-                alt_text=f"พบ {len(results)} โปรโมชั่น",
-                contents=flex_content
-            )
+            # Build Quick Reply buttons for pagination
+            quick_reply_items = []
+            if total_pages > 1:
+                for p in range(1, min(total_pages + 1, 14)):  # LINE max 13 quick reply items
+                    if p != page_num:
+                        quick_reply_items.append(
+                            QuickReplyButton(action=MessageAction(label=f"หน้า {p}", text=f"หน้า {p}"))
+                        )
+            
+            # Alt text with pagination info
+            alt_text = f"พบ {len(results)} รายการ (หน้า {page_num}/{total_pages})"
+            
+            if quick_reply_items:
+                reply_msg = FlexSendMessage(
+                    alt_text=alt_text,
+                    contents=flex_content,
+                    quick_reply=QuickReply(items=quick_reply_items[:13])
+                )
+            else:
+                reply_msg = FlexSendMessage(alt_text=alt_text, contents=flex_content)
             
         except Exception as e:
             print(f"Error building Flex: {e}")
-            # Fallback to text
             reply_msg = TextSendMessage(text=f"พบ {len(results)} รายการ แต่ไม่สามารถแสดง Card ได้")
 
     line_bot_api.reply_message(event.reply_token, reply_msg)
+
