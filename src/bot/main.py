@@ -191,11 +191,12 @@ def handle_message(event):
     user_msg = event.message.text.strip()
     print(f"Received: {user_msg}")
     
-    # 1. Search
-    results = search_engine.search(user_msg)
-    
-    if not results and user_msg == "ล่าสุด":
+    # 1. Check for special commands first
+    if user_msg == "ล่าสุด":
         results = search_engine.get_latest()
+    else:
+        # 2. Search
+        results = search_engine.search(user_msg)
     
     if not results:
         reply_msg = TextSendMessage(text=f"ไม่พบโปรโมชั่นที่เกี่ยวกับ '{user_msg}' ครับ\nลองคำอื่น หรือพิมพ์ 'ล่าสุด' เพื่อดูโปรใหม่ๆ")
