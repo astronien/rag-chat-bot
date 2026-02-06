@@ -22,6 +22,53 @@ STOP_WORDS = {
     'none', 'null', 'undefined', 'nan'
 }
 
+# Synonyms - คำพ้องเสียง/คำเหมือน (ค้นหาคำใดคำหนึ่ง จะ match ทุกคำในกลุ่ม)
+SYNONYMS = {
+    # Products - Thai/English
+    'ไอโฟน': ['iphone', 'ไอโฟน'],
+    'iphone': ['iphone', 'ไอโฟน'],
+    'แมค': ['mac', 'macbook', 'แมค', 'แม็ค'],
+    'mac': ['mac', 'macbook', 'แมค', 'แม็ค'],
+    'macbook': ['mac', 'macbook', 'แมค', 'แม็ค'],
+    'ไอแพด': ['ipad', 'ไอแพด'],
+    'ipad': ['ipad', 'ไอแพด'],
+    'แอร์พอด': ['airpods', 'airpod', 'แอร์พอด', 'แอร์พ็อด'],
+    'airpods': ['airpods', 'airpod', 'แอร์พอด', 'แอร์พ็อด'],
+    'แอปเปิ้ล': ['apple', 'แอปเปิ้ล'],
+    'apple': ['apple', 'แอปเปิ้ล'],
+    
+    # Months - Thai/English
+    'กุมภาพันธ์': ['กุมภาพันธ์', 'กุมภา', 'ก.พ.', 'feb', 'february'],
+    'กุมภา': ['กุมภาพันธ์', 'กุมภา', 'ก.พ.', 'feb', 'february'],
+    'ก.พ.': ['กุมภาพันธ์', 'กุมภา', 'ก.พ.', 'feb', 'february'],
+    'feb': ['กุมภาพันธ์', 'กุมภา', 'ก.พ.', 'feb', 'february'],
+    'february': ['กุมภาพันธ์', 'กุมภา', 'ก.พ.', 'feb', 'february'],
+    'มกราคม': ['มกราคม', 'มกรา', 'ม.ค.', 'jan', 'january'],
+    'มกรา': ['มกราคม', 'มกรา', 'ม.ค.', 'jan', 'january'],
+    'jan': ['มกราคม', 'มกรา', 'ม.ค.', 'jan', 'january'],
+    'มีนาคม': ['มีนาคม', 'มีนา', 'มี.ค.', 'mar', 'march'],
+    'มีนา': ['มีนาคม', 'มีนา', 'มี.ค.', 'mar', 'march'],
+    'mar': ['มีนาคม', 'มีนา', 'มี.ค.', 'mar', 'march'],
+    
+    # Banks
+    'กสิกร': ['kbank', 'กสิกร', 'กสิกรไทย'],
+    'kbank': ['kbank', 'กสิกร', 'กสิกรไทย'],
+    'ไทยพาณิชย์': ['scb', 'ไทยพาณิชย์'],
+    'scb': ['scb', 'ไทยพาณิชย์'],
+    'กรุงเทพ': ['bbl', 'กรุงเทพ'],
+    'bbl': ['bbl', 'กรุงเทพ'],
+    'กรุงศรี': ['krungsri', 'กรุงศรี'],
+    'krungsri': ['krungsri', 'กรุงศรี'],
+    
+    # Common terms
+    'โปร': ['promotion', 'โปร', 'โปรโมชั่น', 'โปรโมชัน'],
+    'โปรโมชั่น': ['promotion', 'โปร', 'โปรโมชั่น', 'โปรโมชัน'],
+    'promotion': ['promotion', 'โปร', 'โปรโมชั่น', 'โปรโมชัน'],
+    'ผ่อน': ['ผ่อน', 'installment', '0%'],
+    'เครดิต': ['credit', 'เครดิต', 'บัตรเครดิต'],
+    'credit': ['credit', 'เครดิต', 'บัตรเครดิต'],
+}
+
 class SearchEngine:
     def __init__(self):
         self.promotions = []
@@ -72,6 +119,12 @@ class SearchEngine:
         if query in STOP_WORDS:
             return []
         
+        # Expand query using synonyms
+        search_terms = [query]
+        if query in SYNONYMS:
+            search_terms.extend(SYNONYMS[query])
+            search_terms = list(set(search_terms))  # Remove duplicates
+        
         results = []
         
         for promo in self.promotions:
@@ -81,35 +134,38 @@ class SearchEngine:
             description = promo.get('description', '').lower()
             content = promo.get('content', '').lower()
             promo_type = promo.get('promotion_type', '').lower()
+            searchable_text = f"{title} {description} {content} {promo_type}"
             
-            # 1. Title match - ให้ความสำคัญสูงสุด
-            if query in title:
-                # Bonus for exact word match
-                if re.search(r'\b' + re.escape(query) + r'\b', title):
-                    score += 100
-                else:
-                    score += 70
-            
-            # 2. Promotion type match
-            if query in promo_type:
-                score += 50
-            
-            # 3. Description match - เฉพาะ query ยาว 5+ ตัวอักษร เท่านั้น
-            if len(query) >= 5 and query in description:
-                score += 20
-            
-            # 4. Content match - เฉพาะ query ยาว 6+ ตัวอักษร เท่านั้น
-            if len(query) >= 6 and query in content:
-                score += 10
-            
-            # 5. Keyword match - exact match only, ยาว 4+ ตัวอักษร
-            keywords = promo.get('keywords', [])
-            if len(query) >= 3:
-                for kw in keywords:
-                    if kw and len(kw) >= 3 and kw not in STOP_WORDS:
-                        if query == kw.lower():
-                            score += 25
-                            break
+            # Check all synonym variants
+            for term in search_terms:
+                # 1. Title match - ให้ความสำคัญสูงสุด
+                if term in title:
+                    # Bonus for exact word match
+                    if re.search(r'\b' + re.escape(term) + r'\b', title):
+                        score += 100
+                    else:
+                        score += 70
+                
+                # 2. Promotion type match
+                if term in promo_type:
+                    score += 50
+                
+                # 3. Description match - เฉพาะ term ยาว 5+ ตัวอักษร เท่านั้น
+                if len(term) >= 5 and term in description:
+                    score += 20
+                
+                # 4. Content match - เฉพาะ term ยาว 6+ ตัวอักษร เท่านั้น
+                if len(term) >= 6 and term in content:
+                    score += 10
+                
+                # 5. Keyword match - exact match only, ยาว 3+ ตัวอักษร
+                keywords = promo.get('keywords', [])
+                if len(term) >= 3:
+                    for kw in keywords:
+                        if kw and len(kw) >= 3 and kw not in STOP_WORDS:
+                            if term == kw.lower():
+                                score += 25
+                                break
             
             if score > 0:
                 results.append((promo, score))
