@@ -26,11 +26,19 @@ class SearchEngine:
     def __init__(self):
         self.promotions = []
         self.load_data()
+    
+    def is_expired(self, promo):
+        """Check if promotion is expired based on duration field."""
+        duration = promo.get('duration', '')
+        return 'หมดอายุ' in duration
 
     def load_data(self):
         if os.path.exists(DATA_FILE):
             with open(DATA_FILE, "r", encoding="utf-8") as f:
-                self.promotions = json.load(f)
+                all_promos = json.load(f)
+                # Filter out expired promotions
+                self.promotions = [p for p in all_promos if not self.is_expired(p)]
+                print(f"Loaded {len(self.promotions)} active promotions (filtered {len(all_promos) - len(self.promotions)} expired)")
         else:
             print("Warning: promotions.json not found.")
 
