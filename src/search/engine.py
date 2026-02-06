@@ -1,7 +1,10 @@
 import json
 import os
+from pathlib import Path
 
-DATA_FILE = "data/promotions.json"
+# Get project root (2 levels up from src/search/engine.py)
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+DATA_FILE = PROJECT_ROOT / "data" / "promotions.json"
 
 class SearchEngine:
     def __init__(self):
