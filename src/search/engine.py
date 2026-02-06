@@ -58,27 +58,27 @@ class SearchEngine:
             content = promo.get('content', '').lower()
             promo_type = promo.get('promotion_type', '').lower()
             
-            # 1. Title match - highest priority
+            # 1. Title match - ให้ความสำคัญสูงสุด
             if query in title:
                 # Bonus for exact word match
                 if re.search(r'\b' + re.escape(query) + r'\b', title):
                     score += 100
                 else:
-                    score += 50
+                    score += 70
             
             # 2. Promotion type match
             if query in promo_type:
-                score += 40
+                score += 50
             
-            # 3. Description match - สำหรับ query ยาว 4+ ตัวอักษร
-            if len(query) >= 4 and query in description:
-                score += 30
-            
-            # 4. Content match - สำหรับ query ยาว 4+ ตัวอักษร
-            if len(query) >= 4 and query in content:
+            # 3. Description match - เฉพาะ query ยาว 5+ ตัวอักษร เท่านั้น
+            if len(query) >= 5 and query in description:
                 score += 20
             
-            # 5. Keyword match - exact match only สำหรับคำยาว
+            # 4. Content match - เฉพาะ query ยาว 6+ ตัวอักษร เท่านั้น
+            if len(query) >= 6 and query in content:
+                score += 10
+            
+            # 5. Keyword match - exact match only, ยาว 4+ ตัวอักษร
             keywords = promo.get('keywords', [])
             if len(query) >= 3:
                 for kw in keywords:
