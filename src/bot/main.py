@@ -236,7 +236,8 @@ def handle_message(event):
                         filename = att_url.split('/')[-1].split('.')[0][:15]
                         label = filename if filename else f"ไฟล์ {idx}"
                     
-                    if att_url and not att_url.endswith('#'):
+                    # Validate URL - must be http:// or https://
+                    if att_url and att_url.startswith(('http://', 'https://')) and not att_url.endswith('#'):
                         actions.append({
                             "type": "button",
                             "style": "secondary",
