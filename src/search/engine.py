@@ -28,9 +28,23 @@ class SearchEngine:
         self.load_data()
     
     def is_expired(self, promo):
-        """Check if promotion is expired based on duration field."""
+        """Check if promotion is expired based on duration field or old year in title."""
         duration = promo.get('duration', '')
-        return 'หมดอายุ' in duration
+        title = promo.get('title', '')
+        
+        # Check if marked as expired
+        if 'หมดอายุ' in duration:
+            return True
+        
+        # Check for old years in title (before current year 2026/2569)
+        old_years_christian = ['2020', '2021', '2022', '2023', '2024', '2025']
+        old_years_thai = ['2563', '2564', '2565', '2566', '2567', '2568']
+        
+        for year in old_years_christian + old_years_thai:
+            if year in title:
+                return True
+        
+        return False
 
     def load_data(self):
         if os.path.exists(DATA_FILE):
