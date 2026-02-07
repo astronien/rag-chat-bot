@@ -6,8 +6,13 @@ Uses caching to minimize API calls.
 import os
 import json
 import uuid
+import logging
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 try:
     import httpx
@@ -46,7 +51,8 @@ def login() -> str | None:
             token_data = data.get("data", {})
             return token_data.get("access_token") or token_data.get("accessToken")
         return None
-    except:
+    except Exception as e:
+        logger.error(f"Login failed: {e}")
         return None
 
 
@@ -64,7 +70,8 @@ def fetch_promotions(token: str) -> list:
             data = response.json()
             return data.get("data", [])
         return []
-    except:
+    except Exception as e:
+        logger.error(f"Failed to fetch promotions: {e}")
         return []
 
 
@@ -96,7 +103,7 @@ def process_promotions(raw_promotions: list) -> list:
             })
         
         text = f"{promo.get('title', '')} {promo.get('description', '')} {promo.get('category', '')}"
-        keywords = list(set([w.lower() for w in text.split() if len(w) > 2]))[:30]
+        keywords = list(set([w.lower() for w in text.split() if len(w) > 2 and w.lower() not in {'none', 'null', 'ที่', 'และ', 'หรือ', 'ของ', 'ใน'} and not w.endswith(')') and not w.startswith('(')]))[:30]
         
         results.append({
             "id": promo.get("id"),

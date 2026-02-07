@@ -28,10 +28,12 @@ LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET", "YOUR_CHANNEL_SECRET")
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# Store user search sessions for pagination
+# Store user search sessions for pagination (with timestamps for cleanup)
 user_sessions = {}
+SESSION_TIMEOUT = 1800  # 30 minutes
 
 import uuid
+import time
 from datetime import datetime
 try:
     import httpx
@@ -109,7 +111,8 @@ async def get_promotions():
                     duration = "วันนี้วันสุดท้าย"
                 else:
                     duration = "หมดอายุแล้ว"
-        except:
+        except Exception as e:
+            print(f"Error parsing date: {e}")
             pass
         
         attachments = [{"text": a.get("title", "ดาวน์โหลด"), "url": a.get("uri", "")} for a in (promo.get("attachments") or [])]
@@ -197,6 +200,44 @@ def handle_message(event):
     user_msg = event.message.text.strip()
     print(f"Received: {user_msg}")
     
+    # Cleanup old sessions (older than 30 minutes)
+    current_time = time.time()
+    expired_users = [uid for uid, data in user_sessions.items() 
+                     if current_time - data.get('timestamp', 0) > SESSION_TIMEOUT]
+    for uid in expired_users:
+        del user_sessions[uid]
+    
+    # Help command
+    help_commands = ['ช่วยเหลือ', 'วิธีใช้', 'help', '?']
+    if user_msg.lower() in help_commands:
+        help_text = """🤖 วิธีใช้งาน Bot
+
+📝 พิมพ์คำค้นหา เช่น:
+• "iphone" หรือ "ไอโฟน"
+• "ผ่อน 0%" หรือ "ผ่อน"
+• "kbank" หรือ "กสิกร"
+• "airpods" หรือ "แอร์พอด"
+
+⚡ คำสั่งพิเศษ:
+• "ล่าสุด" - ดูโปรโมชั่นใหม่ล่าสุด
+• "หน้า 2" - ดูหน้าถัดไป
+
+🏷️ หมวดหมู่ยอดนิยม:
+• iPhone • Mac • iPad
+• Credit Card • Incentive"""
+        reply_msg = TextSendMessage(
+            text=help_text,
+            quick_reply=QuickReply(items=[
+                QuickReplyButton(action=MessageAction(label="ล่าสุด", text="ล่าสุด")),
+                QuickReplyButton(action=MessageAction(label="iPhone", text="iphone")),
+                QuickReplyButton(action=MessageAction(label="ผ่อน 0%", text="ผ่อน")),
+                QuickReplyButton(action=MessageAction(label="บัตรเครดิต", text="credit card")),
+                QuickReplyButton(action=MessageAction(label="Incentive", text="incentive")),
+            ])
+        )
+        line_bot_api.reply_message(event.reply_token, reply_msg)
+        return
+    
     # Check for page navigation command (e.g., "หน้า 2", "หน้า2")
     page_match = re.match(r'^หน้า\s*(\d+)$', user_msg)
     
@@ -222,8 +263,8 @@ def handle_message(event):
             results = search_engine.search(user_msg)
             query = user_msg
         
-        # Store in session for pagination
-        user_sessions[user_id] = {'results': results, 'query': query}
+        # Store in session for pagination (with timestamp)
+        user_sessions[user_id] = {'results': results, 'query': query, 'timestamp': current_time}
     
     if not results:
         reply_msg = TextSendMessage(text=f"ไม่พบโปรโมชั่นที่เกี่ยวกับ '{user_msg}' ครับ\nลองคำอื่น หรือพิมพ์ 'ล่าสุด' เพื่อดูโปรใหม่ๆ")

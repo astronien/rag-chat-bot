@@ -1,6 +1,7 @@
 import json
 import os
 import re
+from datetime import datetime
 from pathlib import Path
 
 # Get project root (2 levels up from src/search/engine.py)
@@ -91,6 +92,42 @@ SYNONYMS = {
     'มิถุนา': ['มิถุนายน', 'มิถุนา', 'มิ.ย.', 'jun', 'june'],
     'jun': ['มิถุนายน', 'มิถุนา', 'มิ.ย.', 'jun', 'june'],
     'june': ['มิถุนายน', 'มิถุนา', 'มิ.ย.', 'jun', 'june'],
+    'กรกฎาคม': ['กรกฎาคม', 'กรกฎา', 'ก.ค.', 'jul', 'july'],
+    'กรกฎา': ['กรกฎาคม', 'กรกฎา', 'ก.ค.', 'jul', 'july'],
+    'jul': ['กรกฎาคม', 'กรกฎา', 'ก.ค.', 'jul', 'july'],
+    'july': ['กรกฎาคม', 'กรกฎา', 'ก.ค.', 'jul', 'july'],
+    'สิงหาคม': ['สิงหาคม', 'สิงหา', 'ส.ค.', 'aug', 'august'],
+    'สิงหา': ['สิงหาคม', 'สิงหา', 'ส.ค.', 'aug', 'august'],
+    'aug': ['สิงหาคม', 'สิงหา', 'ส.ค.', 'aug', 'august'],
+    'august': ['สิงหาคม', 'สิงหา', 'ส.ค.', 'aug', 'august'],
+    'กันยายน': ['กันยายน', 'กันยา', 'ก.ย.', 'sep', 'september'],
+    'กันยา': ['กันยายน', 'กันยา', 'ก.ย.', 'sep', 'september'],
+    'sep': ['กันยายน', 'กันยา', 'ก.ย.', 'sep', 'september'],
+    'september': ['กันยายน', 'กันยา', 'ก.ย.', 'sep', 'september'],
+    'ตุลาคม': ['ตุลาคม', 'ตุลา', 'ต.ค.', 'oct', 'october'],
+    'ตุลา': ['ตุลาคม', 'ตุลา', 'ต.ค.', 'oct', 'october'],
+    'oct': ['ตุลาคม', 'ตุลา', 'ต.ค.', 'oct', 'october'],
+    'october': ['ตุลาคม', 'ตุลา', 'ต.ค.', 'oct', 'october'],
+    'พฤศจิกายน': ['พฤศจิกายน', 'พฤศจิกา', 'พ.ย.', 'nov', 'november'],
+    'พฤศจิกา': ['พฤศจิกายน', 'พฤศจิกา', 'พ.ย.', 'nov', 'november'],
+    'nov': ['พฤศจิกายน', 'พฤศจิกา', 'พ.ย.', 'nov', 'november'],
+    'november': ['พฤศจิกายน', 'พฤศจิกา', 'พ.ย.', 'nov', 'november'],
+    'ธันวาคม': ['ธันวาคม', 'ธันวา', 'ธ.ค.', 'dec', 'december'],
+    'ธันวา': ['ธันวาคม', 'ธันวา', 'ธ.ค.', 'dec', 'december'],
+    'dec': ['ธันวาคม', 'ธันวา', 'ธ.ค.', 'dec', 'december'],
+    'december': ['ธันวาคม', 'ธันวา', 'ธ.ค.', 'dec', 'december'],
+    
+    # Computer Brands
+    'เลโนโว่': ['lenovo', 'เลโนโว่', 'เลอโนโว'],
+    'lenovo': ['lenovo', 'เลโนโว่', 'เลอโนโว'],
+    'เดลล์': ['dell', 'เดลล์'],
+    'dell': ['dell', 'เดลล์'],
+    'เอซุส': ['asus', 'เอซุส', 'อัสซุส'],
+    'asus': ['asus', 'เอซุส', 'อัสซุส'],
+    'เอเซอร์': ['acer', 'เอเซอร์'],
+    'acer': ['acer', 'เอเซอร์'],
+    'ไมโครซอฟท์': ['microsoft', 'ไมโครซอฟท์', 'ไมโครซอฟ'],
+    'microsoft': ['microsoft', 'ไมโครซอฟท์', 'ไมโครซอฟ'],
     
     # Banks
     'กสิกร': ['kbank', 'กสิกร', 'กสิกรไทย'],
@@ -152,9 +189,11 @@ class SearchEngine:
         if 'หมดอายุ' in duration:
             return True
         
-        # Check for old years in title OR description (before current year 2026/2569)
-        old_years_christian = ['2020', '2021', '2022', '2023', '2024', '2025']
-        old_years_thai = ['2563', '2564', '2565', '2566', '2567', '2568']
+        # Check for old years in title OR description (dynamically calculated)
+        current_year = datetime.now().year
+        current_thai_year = current_year + 543
+        old_years_christian = [str(y) for y in range(2020, current_year)]
+        old_years_thai = [str(y) for y in range(2563, current_thai_year)]
         
         text_to_check = title + ' ' + description
         for year in old_years_christian + old_years_thai:
