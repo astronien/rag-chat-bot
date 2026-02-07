@@ -30,49 +30,16 @@ _cache = {"data": None, "timestamp": 0}
 CACHE_TTL = 300  # 5 minutes
 
 
-def login() -> str | None:
-    """Login via API and return access token."""
-    if not httpx:
-        return None
-    try:
-        response = httpx.post(
-            LOGIN_URL,
-            json={
-                "emp_code": USERNAME,
-                "pass": PASSWORD,
-                "device_uuid": str(uuid.uuid4()),
-                "platform": "web"
-            },
-            headers={"Content-Type": "application/json"},
-            timeout=30
-        )
-        if response.status_code == 200:
-            data = response.json()
-            token_data = data.get("data", {})
-            return token_data.get("access_token") or token_data.get("accessToken")
-        return None
-    except Exception as e:
-        logger.error(f"Login failed: {e}")
-        return None
+# Add src to path for import
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from typing import Optional
+from src.utils.fetcher import login, fetch_promotions_data
 
 def fetch_promotions(token: str) -> list:
-    """Fetch all promotions via API."""
-    if not httpx:
-        return []
-    try:
-        response = httpx.get(
-            f"{PROMOTIONS_URL}?perpage=200&sort_by=updated_at&sort_direction=desc&business_units=Apple",
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=60
-        )
-        if response.status_code == 200:
-            data = response.json()
-            return data.get("data", [])
-        return []
-    except Exception as e:
-        logger.error(f"Failed to fetch promotions: {e}")
-        return []
+    """Wrapper for fetch_promotions_data."""
+    return fetch_promotions_data(token)
 
 
 def process_promotions(raw_promotions: list) -> list:
@@ -146,6 +113,13 @@ def get_promotions_with_cache() -> list:
 
 
 class handler(BaseHTTPRequestHandler):
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+
     def do_GET(self):
         try:
             promotions = get_promotions_with_cache()

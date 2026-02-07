@@ -203,14 +203,66 @@ class SearchEngine:
         return False
 
     def load_data(self):
+        # Check file age and update if needed
+        self.check_and_update_data()
+        
         if os.path.exists(DATA_FILE):
-            with open(DATA_FILE, "r", encoding="utf-8") as f:
-                all_promos = json.load(f)
-                # Filter out expired promotions
-                self.promotions = [p for p in all_promos if not self.is_expired(p)]
-                print(f"Loaded {len(self.promotions)} active promotions (filtered {len(all_promos) - len(self.promotions)} expired)")
+            try:
+                with open(DATA_FILE, "r", encoding="utf-8") as f:
+                    all_promos = json.load(f)
+                    
+                    # Filter out expired promotions
+                    self.promotions = [p for p in all_promos if not self.is_expired(p)]
+                    print(f"Loaded {len(self.promotions)} active promotions (filtered {len(all_promos) - len(self.promotions)} expired)")
+            except Exception as e:
+                print(f"Error loading data: {e}")
         else:
             print("Warning: promotions.json not found.")
+
+    def check_and_update_data(self):
+        """Check if data file is old or missing, and fetch new data if needed."""
+        should_update = False
+        
+        if not os.path.exists(DATA_FILE):
+            print("Data file missing. Triggering update...")
+            should_update = True
+        else:
+            # Check file age (1 hour = 3600 seconds)
+            file_mod_time = os.path.getmtime(DATA_FILE)
+            current_time = datetime.now().timestamp()
+            if current_time - file_mod_time > 3600:
+                print("Data file is older than 1 hour. Triggering update...")
+                should_update = True
+        
+        if should_update:
+            try:
+                # Add src to path for import
+                import sys
+                sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                
+                from src.utils.fetcher import login, fetch_promotions_data
+                # We need process_promotions from api/promotions (or move it to utils?)
+                # For now, let's import it carefully
+                sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+                from api.promotions import process_promotions
+                
+                print("Logging in to fetch new data...")
+                token = login()
+                if token:
+                    print("Fetching promotions...")
+                    raw_data = fetch_promotions_data(token)
+                    if raw_data:
+                        print(f"Processing {len(raw_data)} items...")
+                        processed_data = process_promotions(raw_data)
+                        
+                        # Save to file
+                        os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
+                        with open(DATA_FILE, "w", encoding="utf-8") as f:
+                            json.dump(processed_data, f, ensure_ascii=False, indent=2)
+                        print("Data updated successfully.")
+            except Exception as e:
+                print(f"Failed to auto-update data: {e}")
+
 
     def search(self, query: str):
         if not query:
@@ -237,45 +289,86 @@ class SearchEngine:
         for promo in self.promotions:
             score = 0
             
-            title = promo.get('title', '').lower()
-            description = promo.get('description', '').lower()
-            content = promo.get('content', '').lower()
-            promo_type = promo.get('promotion_type', '').lower()
-            searchable_text = f"{title} {description} {content} {promo_type}"
+            title = promo.get('title', '')
+            description = promo.get('description', '')
+            content = promo.get('content', '')
+            promo_type = promo.get('promotion_type', '')
+            
+            title_lower = title.lower()
+            desc_lower = description.lower()
+            content_lower = content.lower()
+            type_lower = promo_type.lower()
+            
+            matched_terms = set()
             
             # Check all synonym variants
             for term in search_terms:
-                # 1. Title match - ให้ความสำคัญสูงสุด
-                if term in title:
-                    # Bonus for exact word match
-                    if re.search(r'\b' + re.escape(term) + r'\b', title):
+                term_len = len(term)
+                
+                # 1. Exact Match Logic
+                if term in title_lower:
+                    if re.search(r'\b' + re.escape(term) + r'\b', title_lower):
                         score += 100
                     else:
                         score += 70
+                    matched_terms.add(term)
                 
-                # 2. Promotion type match
-                if term in promo_type:
+                if term in type_lower:
                     score += 50
+                    matched_terms.add(term)
                 
-                # 3. Description match - เฉพาะ term ยาว 5+ ตัวอักษร เท่านั้น
-                if len(term) >= 5 and term in description:
+                if term_len >= 5 and term in desc_lower:
                     score += 20
+                    matched_terms.add(term)
                 
-                # 4. Content match - เฉพาะ term ยาว 6+ ตัวอักษร เท่านั้น
-                if len(term) >= 6 and term in content:
+                if term_len >= 6 and term in content_lower:
                     score += 10
+                    matched_terms.add(term)
                 
-                # 5. Keyword match - exact match only, ยาว 3+ ตัวอักษร
+                # Keyword match
                 keywords = promo.get('keywords', [])
-                if len(term) >= 3:
+                if term_len >= 3:
                     for kw in keywords:
                         if kw and len(kw) >= 3 and kw not in STOP_WORDS:
                             if term == kw.lower():
                                 score += 25
+                                matched_terms.add(term)
                                 break
             
+            # 2. Fuzzy Match (If no exact match found yet)
+            if score == 0 and len(query) > 4:
+                # Check fuzzy match against title only
+                import difflib
+                
+                # Split title into words to check against query
+                title_words = title_lower.split()
+                for word in title_words:
+                    if len(word) > 4:
+                        ratio = difflib.SequenceMatcher(None, query, word).ratio()
+                        if ratio > 0.8:  # 80% similarity
+                            score += 40
+                            matched_terms.add(word)
+                            break
+            
             if score > 0:
-                results.append((promo, score))
+                # Add highlighting
+                highlighted_title = title
+                highlighted_desc = description
+                
+                # Simple highlight replacement (case-insensitive)
+                for term in matched_terms:
+                    # Escape special regex chars
+                    pattern = re.compile(re.escape(term), re.IGNORECASE)
+                    highlighted_title = pattern.sub(lambda m: f"<em>{m.group(0)}</em>", highlighted_title)
+                    highlighted_desc = pattern.sub(lambda m: f"<em>{m.group(0)}</em>", highlighted_desc)
+                
+                promo_copy = promo.copy()
+                promo_copy['highlight'] = {
+                    'title': highlighted_title,
+                    'description': highlighted_desc
+                }
+                
+                results.append((promo_copy, score))
         
         # Sort by score descending
         results.sort(key=lambda x: x[1], reverse=True)
