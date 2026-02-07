@@ -42,11 +42,23 @@ def fetch_promotions(token: str) -> list:
     return fetch_promotions_data(token)
 
 
+BLOCKED_KEYWORDS = {
+    'samsung', 'oppo', 'vivo', 'xiaomi', 'redmi', 'realme', 'huawei', 'honor',
+    'infinix', 'tecno', 'oneplus', 'poco', 'nokia',
+    'acer', 'asus', 'dell', 'lenovo', 'hp', 'msi', 'microsoft surface',
+    'android'
+}
+
 def process_promotions(raw_promotions: list) -> list:
     """Transform raw API data to our format."""
     results = []
     
     for promo in raw_promotions:
+        # Filter out blocked brands
+        title_lower = promo.get('title', '').lower()
+        if any(keyword in title_lower for keyword in BLOCKED_KEYWORDS):
+            continue
+            
         duration = ""
         try:
             display_to = promo.get("display_to")
